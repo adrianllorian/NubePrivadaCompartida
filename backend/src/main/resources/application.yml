@@ -7,6 +7,7 @@ server:
     session:
       timeout: ${SESSION_TIMEOUT:30d}
       cookie:
+        max-age: ${SESSION_TIMEOUT:30d}
         http-only: true
         same-site: lax
 
@@ -27,7 +28,7 @@ spring:
       location: ${cloud.home}/tmp
 
 cloud:
-  home: ${CLOUD_HOME:${user.home}/NubePrivadaCompartida}
+  home: ${CLOUD_HOME:${app.data.dir}}
 
 logging:
   level:

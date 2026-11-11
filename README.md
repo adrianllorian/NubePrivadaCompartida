@@ -59,7 +59,7 @@ Descarga la última versión desde **Releases**:
 SHA-256 del JAR:
 
 ```text
-F8C0418137AC073DBE1F8580B0852C9882239ADE4A76D1BC7291FA3FB570E2A6
+2B65C8DD648F0BF3E6299B3DB20E62268C23BEAFC2C832FC952EDC619878C49A
 ```
 
 ## Ejecutar
@@ -77,11 +77,21 @@ java -jar NubePrivadaCompartida.jar
 http://localhost:8090
 ```
 
-No hace falta configurar nada. Los datos se guardan por defecto en la carpeta
-del usuario:
+No hace falta configurar nada. Los datos se guardan en una carpeta `data`
+**junto al JAR**:
 
-- **Windows:** `%USERPROFILE%\NubePrivadaCompartida`
-- **Linux / macOS:** `~/NubePrivadaCompartida`
+```text
+NubePrivadaCompartida.jar
+data/
+  nube-privada.db
+  uploads/
+  files/
+  thumbs/
+  tmp/
+```
+
+Si mueves el JAR, mueve también la carpeta `data`. Si mueves solo el JAR, la
+aplicación creará una nube nueva y vacía junto a la nueva ubicación.
 
 Si prefieres otra ubicación, define `CLOUD_HOME`:
 
@@ -110,45 +120,47 @@ Después, el administrador puede crear el resto de usuarios desde la pestaña
 
 ## Datos
 
-Por defecto se guardan en la carpeta del usuario:
-
-- **Windows:** `%USERPROFILE%\NubePrivadaCompartida`
-- **Linux / macOS:** `~/NubePrivadaCompartida`
-
-Si defines `CLOUD_HOME`, se usa esa carpeta.
+Por defecto se guardan en la carpeta `data` **junto al JAR**:
 
 ```text
-nube-privada.db   # base de datos SQLite
-uploads/          # archivos subidos
-files/            # estructura de carpetas
-thumbs/           # miniaturas
-tmp/              # temporales de subida
+data/
+├── nube-privada.db   # base de datos SQLite
+├── uploads/          # archivos subidos
+├── files/            # estructura de carpetas
+├── thumbs/           # miniaturas
+└── tmp/              # temporales de subida
 ```
+
+Si defines `CLOUD_HOME`, se usa esa carpeta.
 
 Si vienes de la versión anterior, la aplicación renombra automáticamente
 `cloudshare.db` a `nube-privada.db` para conservar tus datos.
 
-Para hacer una copia de seguridad, detén la aplicación y copia esa carpeta.
+Para hacer una copia de seguridad, detén la aplicación y copia la carpeta
+`data` completa.
+
+**Importante al mover el JAR:** mueve también `data`. Si no lo haces, la
+aplicación arrancará con una nube vacía en la nueva ubicación. Los datos
+antiguos no se borran: siguen en la carpeta anterior.
 
 ## Sesión
 
-La sesión dura **30 días** por defecto. Puedes cambiarla con la variable
-`SESSION_TIMEOUT`:
+La sesión dura **30 días** por defecto y la cookie también es persistente: si
+cierras y vuelves a abrir el navegador, la sesión se mantiene hasta que caduque
+o pulses **Salir**. Puedes cambiar el tiempo con la variable `SESSION_TIMEOUT`:
 
 ```powershell
 $env:SESSION_TIMEOUT = "2h"
 java -jar NubePrivadaCompartida.jar
 ```
 
-También se puede pasar como argumento:
+También se puede pasar como argumento (hay que cambiar las dos propiedades):
 
 ```powershell
-java -jar NubePrivadaCompartida.jar --server.servlet.session.timeout=8h
+java -jar NubePrivadaCompartida.jar --server.servlet.session.timeout=8h --server.servlet.session.cookie.max-age=8h
 ```
 
-Valores habituales: `30m`, `2h`, `8h`, `1d`, `30d`. La cookie de sesión se elimina al
-cerrar el navegador, así que el tiempo indicado es el máximo que puede durar
-abierta.
+Valores habituales: `30m`, `2h`, `8h`, `1d`, `30d`.
 
 ## Compilar desde el código
 
