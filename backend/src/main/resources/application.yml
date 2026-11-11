@@ -1,0 +1,35 @@
+server:
+  port: 8090
+  tomcat:
+    max-swallow-size: -1
+    connection-timeout: 3600000
+  servlet:
+    session:
+      timeout: ${SESSION_TIMEOUT:30d}
+      cookie:
+        http-only: true
+        same-site: lax
+
+spring:
+  datasource:
+    url: jdbc:sqlite:${cloud.home}/nube-privada.db
+    driver-class-name: org.sqlite.JDBC
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.community.dialect.SQLiteDialect
+    open-in-view: false
+  servlet:
+    multipart:
+      max-file-size: -1
+      max-request-size: -1
+      file-size-threshold: 2MB
+      location: ${cloud.home}/tmp
+
+cloud:
+  home: ${CLOUD_HOME:${user.home}/NubePrivadaCompartida}
+
+logging:
+  level:
+    root: info
+    org.hibernate: warn

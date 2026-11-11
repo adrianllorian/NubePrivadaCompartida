@@ -1,0 +1,414 @@
+@if (loading) {
+  <div class="center-screen">
+    <div class="spinner"></div>
+  </div>
+} @else if (setupRequired) {
+  <div class="center-screen">
+    <form class="login-card" (ngSubmit)="setup()">
+      <div class="brand-badge">
+        <svg width="46" height="46" viewBox="0 0 64 64" aria-hidden="true">
+          <defs>
+            <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#60A5FA" />
+              <stop offset="1" stop-color="#A78BFA" />
+            </linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="16" fill="url(#g)" />
+          <path d="M20 44V28l12-8 12 8v16H20z" fill="white" opacity="0.95" />
+          <rect x="28" y="34" width="8" height="10" rx="2" fill="#3B82F6" />
+        </svg>
+      </div>
+      <h1>Nube Privada Compartida</h1>
+      <p class="muted">Configuración inicial</p>
+      <p class="muted">Crea la cuenta de administrador. La contraseña se guardará cifrada con BCrypt.</p>
+
+      <label>Usuario administrador</label>
+      <input type="text" name="setupUser" [(ngModel)]="setupUser" autocomplete="username" autofocus />
+
+      <label>Contraseña</label>
+      <input type="password" name="setupPass" [(ngModel)]="setupPass" autocomplete="new-password" />
+
+      <label>Repite la contraseña</label>
+      <input type="password" name="setupPassConfirm" [(ngModel)]="setupPassConfirm" autocomplete="new-password" />
+
+      @if (setupError) {
+        <p class="error">{{ setupError }}</p>
+      }
+
+      <button type="submit" class="primary" [disabled]="setupBusy">
+        {{ setupBusy ? 'Creando…' : 'Crear administrador' }}
+      </button>
+    </form>
+  </div>
+} @else if (!user) {
+  <div class="center-screen">
+    <form class="login-card" (ngSubmit)="login()">
+      <div class="brand-badge">
+        <svg width="46" height="46" viewBox="0 0 64 64" aria-hidden="true">
+          <defs>
+            <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#60A5FA" />
+              <stop offset="1" stop-color="#A78BFA" />
+            </linearGradient>
+          </defs>
+          <rect width="64" height="64" rx="16" fill="url(#g)" />
+          <path d="M20 44V28l12-8 12 8v16H20z" fill="white" opacity="0.95" />
+          <rect x="28" y="34" width="8" height="10" rx="2" fill="#3B82F6" />
+        </svg>
+      </div>
+      <h1>Nube Privada Compartida</h1>
+      <p class="muted">Ficheros compartidos</p>
+
+      <label>Usuario</label>
+      <input type="text" name="username" [(ngModel)]="loginUser" autocomplete="username" autofocus />
+
+      <label>Contraseña</label>
+      <input type="password" name="password" [(ngModel)]="loginPass" autocomplete="current-password" />
+
+      @if (loginError) {
+        <p class="error">{{ loginError }}</p>
+      }
+
+      <button type="submit" class="primary" [disabled]="loginBusy">
+        {{ loginBusy ? 'Entrando…' : 'Entrar' }}
+      </button>
+    </form>
+  </div>
+} @else {
+  <header class="topbar">
+    <div class="brand">
+      <span class="dot"></span>
+      <div>
+        <p class="brand-title">Nube Privada Compartida</p>
+        <p class="brand-sub">Ficheros compartidos</p>
+      </div>
+    </div>
+    <div class="session">
+      <span class="user-chip">
+        <i class="avatar">{{ user.username.charAt(0).toUpperCase() }}</i>
+        {{ user.username }}
+        @if (isAdmin) {
+          <em>admin</em>
+        }
+      </span>
+      <button class="ghost" type="button" (click)="logout()">Salir</button>
+    </div>
+  </header>
+
+  <main class="main">
+    @if (stats) {
+      <section class="disk">
+        <div class="disk-head">
+          <span>Disco del servidor</span>
+          <span class="muted">{{ fmt(stats.used) }} de {{ fmt(stats.total) }} · {{ usedPercent() }}%</span>
+        </div>
+        <div class="bar"><div class="bar-fill" [style.width.%]="usedPercent()"></div></div>
+        <div class="disk-legend">
+          <span><i class="sw used"></i>Ocupado {{ fmt(stats.used) }}</span>
+          <span><i class="sw free"></i>Libre {{ fmt(stats.free) }}</span>
+          <span><i class="sw app"></i>En esta nube {{ fmt(stats.appUsed) }} ({{ stats.fileCount }} ficheros)</span>
+        </div>
+      </section>
+    }
+
+    <nav class="tabs">
+      <button type="button" [class.active]="tab === 'files'" (click)="tab = 'files'">Ficheros</button>
+      <button type="button" [class.active]="tab === 'activity'" (click)="tab = 'activity'; loadActivity(0)">Actividad</button>
+      @if (isAdmin) {
+        <button type="button" [class.active]="tab === 'users'" (click)="tab = 'users'; loadUsers()">Usuarios</button>
+      }
+    </nav>
+
+    @if (notice) {
+      <div class="notice" (click)="notice = ''">{{ notice }}</div>
+    }
+
+    @if (tab === 'files') {
+      <section
+        class="dropzone"
+        [class.dragging]="dragging"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave($event)"
+        (drop)="onDrop($event)"
+      >
+        <div class="toolbar">
+          <div class="crumbs">
+            <button type="button" class="crumb" (click)="goTo(null)">Inicio</button>
+            @for (crumb of listing.breadcrumb; track crumb.id) {
+              <span class="sep">/</span>
+              <button type="button" class="crumb" (click)="goTo(crumb.id)">{{ crumb.name }}</button>
+            }
+            @if (listing.search) {
+              <span class="chip">Resultados de «{{ query }}»</span>
+            }
+          </div>
+          <div class="actions">
+            <button type="button" class="ghost" (click)="openFolderDialog()">Nueva carpeta</button>
+            <label class="primary file-btn">
+              Subir ficheros
+              <input type="file" multiple (change)="onFilesPicked($event)" hidden />
+            </label>
+          </div>
+        </div>
+
+        <div class="searchbar">
+          <input
+            type="search"
+            placeholder="Buscar en toda la nube…"
+            [(ngModel)]="query"
+            (keyup.enter)="search()"
+          />
+          <button type="button" class="mini" (click)="search()">Buscar</button>
+          @if (query) {
+            <button type="button" class="mini" (click)="clearSearch(); search()">Limpiar</button>
+          }
+          <div class="sort">
+            <span class="muted small">Ordenar:</span>
+            <button type="button" class="mini" [class.on]="sortKey === 'name'" (click)="setSort('name')">Nombre</button>
+            <button type="button" class="mini" [class.on]="sortKey === 'size'" (click)="setSort('size')">Tamaño</button>
+            <button type="button" class="mini" [class.on]="sortKey === 'date'" (click)="setSort('date')">Fecha</button>
+            <button type="button" class="mini" [class.on]="sortKey === 'owner'" (click)="setSort('owner')">Dueño</button>
+            <span class="muted small">{{ sortDir === 1 ? '↑' : '↓' }}</span>
+          </div>
+        </div>
+
+        @if (uploading) {
+          <div class="upload">
+            <div class="upload-head">
+              <span>Subiendo {{ uploadNames }}</span>
+              <span class="upload-right">
+                <strong>{{ uploadPercent }}%<span class="muted small"> · {{ uploadText }}</span></strong>
+                <button type="button" class="mini danger" (click)="cancelUpload()">Cancelar</button>
+              </span>
+            </div>
+            <div class="bar small"><div class="bar-fill" [style.width.%]="uploadPercent"></div></div>
+          </div>
+        }
+
+        @if (selectedCount > 0) {
+          <div class="bulk">
+            <span>{{ selectedCount }} seleccionado(s)</span>
+            <button type="button" class="mini" (click)="downloadSelected()">Descargar ZIP</button>
+            <button type="button" class="mini danger" (click)="deleteSelected()">Borrar</button>
+          </div>
+        }
+
+        @if (sortedItems.length === 0) {
+          <div class="empty">
+            <p>{{ listing.search ? 'Sin resultados' : 'Esta carpeta está vacía' }}</p>
+            <p class="muted">{{ listing.search ? 'Prueba con otro nombre' : 'Arrastra ficheros aquí o pulsa «Subir ficheros»' }}</p>
+          </div>
+        } @else {
+          <div class="list">
+            <div class="row head">
+              <span class="check">
+                <input type="checkbox" [checked]="allSelected" (change)="toggleAll()" title="Seleccionar todo" />
+              </span>
+              <span>Nombre</span>
+              <span>Tamaño</span>
+              <span>Dueño</span>
+              <span>Fecha</span>
+              <span></span>
+            </div>
+            @for (item of sortedItems; track item.id) {
+              <div class="row" [class.marked]="isSelected(item)">
+                <span class="check">
+                  <input type="checkbox" [checked]="isSelected(item)" (change)="toggle(item)" />
+                </span>
+                <button type="button" class="name" (click)="openItem(item)" [class.link]="item.folder || true">
+                  @if (item.folder) {
+                    <i class="file-badge folder">📁</i>
+                  } @else if (thumbOk(item)) {
+                    <img class="thumb" [src]="thumbUrl(item.id)" [alt]="item.name" (error)="onThumbError(item.id)" loading="lazy" />
+                  } @else {
+                    <i [class]="'file-badge ' + fileBadge(item).cls">{{ fileBadge(item).label }}</i>
+                  }
+                  <span class="name-text">
+                    <span class="name-label">{{ item.name }}</span>
+                    @if (item.path) {
+                      <span class="path muted small">{{ item.path }}</span>
+                    }
+                  </span>
+                </button>
+                <span class="muted">{{ item.folder ? '—' : fmt(item.size) }}</span>
+                <span class="muted">{{ item.owner }}</span>
+                <span class="muted small">{{ date(item.createdAt) }}</span>
+                <span class="row-actions">
+                  @if (!item.folder) {
+                    <button type="button" class="mini" (click)="openPreview(item)" title="Abrir">Abrir</button>
+                    <button type="button" class="mini" (click)="download(item)" title="Descargar">Descargar</button>
+                  }
+                  <button type="button" class="mini" (click)="share(item)" title="Copiar enlace">Enlace</button>
+                  @if (canDelete(item)) {
+                    <button type="button" class="mini" (click)="startRename(item)" title="Renombrar">Renombrar</button>
+                    <button type="button" class="mini" (click)="startMove(item)" title="Mover">Mover</button>
+                    <button type="button" class="mini danger" (click)="remove(item)" title="Borrar">Borrar</button>
+                  }
+                </span>
+              </div>
+            }
+          </div>
+        }
+
+        <p class="hint muted">Arrastra y suelta ficheros en cualquier punto de esta zona para subirlos. Las subidas se reanudan si se cortan.</p>
+      </section>
+    }
+
+    @if (tab === 'activity') {
+      <section class="panel">
+        <h2>Actividad</h2>
+        <div class="user-form">
+          @if (isAdmin) {
+            <input type="text" placeholder="Filtrar por usuario" [(ngModel)]="filterUser" (keyup.enter)="applyActivityFilters()" />
+          }
+          <select [(ngModel)]="filterAction" (change)="applyActivityFilters()">
+            <option value="">Todas las acciones</option>
+            @for (a of activity.actions; track a) {
+              <option [value]="a">{{ a }}</option>
+            }
+          </select>
+          <button type="button" class="ghost" (click)="applyActivityFilters()">Aplicar</button>
+        </div>
+
+        @if (activity.content.length === 0) {
+          <p class="muted">Sin actividad.</p>
+        } @else {
+          <div class="list">
+            @for (entry of activity.content; track entry.id) {
+              <div class="row activity">
+                <span class="badge">{{ entry.action }}</span>
+                <span>{{ entry.username }}</span>
+                <span class="muted">{{ entry.detail }}</span>
+                <span class="muted small">{{ date(entry.createdAt) }}</span>
+                <span class="muted small">{{ entry.ip }}</span>
+              </div>
+            }
+          </div>
+          <div class="pager">
+            <button type="button" class="mini" [disabled]="activityPage === 0" (click)="activityPrev()">Anterior</button>
+            <span class="muted small">Página {{ activityPage + 1 }} de {{ activity.pages || 1 }} · {{ activity.total }} registros</span>
+            <button type="button" class="mini" [disabled]="activityPage + 1 >= activity.pages" (click)="activityNext()">Siguiente</button>
+          </div>
+        }
+      </section>
+    }
+
+    @if (tab === 'users' && isAdmin) {
+      <section class="panel">
+        <h2>Crear usuario</h2>
+        <div class="user-form">
+          <input type="text" placeholder="Usuario" [(ngModel)]="newUser" />
+          <input type="password" placeholder="Contraseña" [(ngModel)]="newPass" />
+          <select [(ngModel)]="newRole">
+            <option value="USER">Usuario</option>
+            <option value="ADMIN">Administrador</option>
+          </select>
+          <button type="button" class="primary" (click)="createUser()">Crear</button>
+        </div>
+        @if (userMessage) {
+          <p class="muted">{{ userMessage }}</p>
+        }
+
+        <h2>Usuarios</h2>
+        <div class="list">
+          @for (u of users; track u.username) {
+            <div class="row simple">
+              <span class="name"><i class="file-badge folder">👤</i><span class="name-label">{{ u.username }}</span></span>
+              <span class="muted">{{ u.role === 'ADMIN' ? 'Administrador' : 'Usuario' }}</span>
+            </div>
+          }
+        </div>
+      </section>
+    }
+  </main>
+
+  @if (showFolderDialog) {
+    <div class="overlay" (click)="showFolderDialog = false">
+      <div class="dialog" (click)="$event.stopPropagation()">
+        <h3>Nueva carpeta</h3>
+        <input type="text" placeholder="Nombre de la carpeta" [(ngModel)]="newFolderName" (keyup.enter)="createFolder()" autofocus />
+        <div class="dialog-actions">
+          <button type="button" class="ghost" (click)="showFolderDialog = false">Cancelar</button>
+          <button type="button" class="primary" (click)="createFolder()">Crear</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (renameItem) {
+    <div class="overlay" (click)="renameItem = null">
+      <div class="dialog" (click)="$event.stopPropagation()">
+        <h3>Renombrar</h3>
+        <input type="text" [(ngModel)]="renameValue" (keyup.enter)="confirmRename()" autofocus />
+        <div class="dialog-actions">
+          <button type="button" class="ghost" (click)="renameItem = null">Cancelar</button>
+          <button type="button" class="primary" (click)="confirmRename()">Guardar</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (moveItem) {
+    <div class="overlay" (click)="moveItem = null">
+      <div class="dialog" (click)="$event.stopPropagation()">
+        <h3>Mover «{{ moveItem.name }}»</h3>
+        <select [(ngModel)]="moveTarget">
+          <option [ngValue]="null">Inicio (raíz)</option>
+          @for (f of folders; track f.id) {
+            <option [ngValue]="f.id">{{ f.path }}</option>
+          }
+        </select>
+        <div class="dialog-actions">
+          <button type="button" class="ghost" (click)="moveItem = null">Cancelar</button>
+          <button type="button" class="primary" (click)="confirmMove()">Mover</button>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (preview) {
+    <div class="overlay" (click)="closePreview()">
+      <div class="preview" (click)="$event.stopPropagation()">
+        <header>
+          <h3>{{ preview.name }}</h3>
+          <button type="button" class="ghost" (click)="closePreview()">Cerrar</button>
+        </header>
+
+        <div class="preview-body">
+          @switch (previewKind(preview)) {
+            @case ('image') {
+              <img [src]="rawUrl(preview.id)" [alt]="preview.name" />
+            }
+            @case ('video') {
+              <video controls autoplay [src]="rawUrl(preview.id)"></video>
+            }
+            @case ('audio') {
+              <audio controls autoplay [src]="rawUrl(preview.id)"></audio>
+            }
+            @case ('pdf') {
+              <iframe [src]="rawUrl(preview.id)" title="PDF"></iframe>
+            }
+            @case ('text') {
+              @if (previewLoading) {
+                <div class="spinner"></div>
+              } @else {
+                <pre>{{ previewText }}</pre>
+              }
+            }
+            @default {
+              <p class="muted">Este formato no se puede previsualizar en el navegador.</p>
+            }
+          }
+        </div>
+
+        <footer>
+          <span class="muted small">{{ fmt(preview.size) }} · {{ preview.owner }}</span>
+          <div class="dialog-actions">
+            <button type="button" class="ghost" (click)="closePreview()">Cerrar</button>
+            <a class="primary file-btn" [href]="downloadUrl(preview.id)" target="_blank" rel="noopener">Descargar</a>
+          </div>
+        </footer>
+      </div>
+    </div>
+  }
+}

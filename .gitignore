@@ -1,0 +1,45 @@
+# --- Backend (Maven / datos locales) ---
+backend/target/
+backend/uploads/
+backend/logs/
+backend/data/
+backend/tmp/
+nube-privada.db
+*.db-journal
+
+# --- UI (Angular / Node) ---
+ui/node_modules/
+ui/dist/
+ui/.angular/
+ui/tmp/
+ui/out-tsc/
+
+# --- UI compilada dentro del backend ---
+backend/src/main/resources/static/
+
+# --- Secretos y configuración local ---
+.env
+.env.*
+!.env.example
+*.env
+*.key
+*.pem
+*.p12
+*.jks
+
+# --- Logs y ficheros de proceso ---
+*.log
+*.pid
+*-pid.txt
+
+# --- Sistema / IDE ---
+.DS_Store
+Thumbs.db
+.idea/
+*.iml
+.vscode/
+
+# --- Eclipse / STS ---
+.project
+.classpath
+.settings/
