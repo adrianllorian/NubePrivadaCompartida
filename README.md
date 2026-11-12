@@ -9,6 +9,7 @@
 </p>
 
 <p align="center">
+  <img src="https://img.shields.io/github/v/release/adrianllorian/NubePrivadaCompartida?style=flat-square&label=versi%C3%B3n" alt="Versión">
   <img src="https://img.shields.io/badge/Java-17-orange?style=flat-square&logo=openjdk&logoColor=white" alt="Java 17">
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot">
   <img src="https://img.shields.io/badge/Angular-20-DD0031?style=flat-square&logo=angular&logoColor=white" alt="Angular">
@@ -46,13 +47,14 @@
 
 ## Descarga
 
-Descarga la última versión desde **Releases**:
+Descarga siempre la última versión desde este enlace fijo:
 
-**[Nube Privada Compartida v1.0.0](https://github.com/adrianllorian/NubePrivadaCompartida/releases/latest)**
+**[Nube Privada Compartida (última versión)](https://github.com/adrianllorian/NubePrivadaCompartida/releases/latest/download/NubePrivadaCompartida.jar)**
 
 - Archivo: `NubePrivadaCompartida.jar`
-- Tamaño: 60 MB
+- Tamaño: 60,2 MB
 - Requisito: **Java 17 o superior**
+- Plataforma: Windows, Linux y macOS
 
 ### Verificar la descarga
 
@@ -62,38 +64,42 @@ SHA-256 del JAR:
 2B65C8DD648F0BF3E6299B3DB20E62268C23BEAFC2C832FC952EDC619878C49A
 ```
 
+Para comprobarlo en PowerShell:
+
+```powershell
+Get-FileHash ".\NubePrivadaCompartida.jar" -Algorithm SHA256
+```
+
 ## Ejecutar
 
-1. Descarga `NubePrivadaCompartida.jar`.
+1. Descarga `NubePrivadaCompartida.jar` y colócalo en una carpeta donde puedas escribir.
 2. Arranca:
 
 ```powershell
 java -jar NubePrivadaCompartida.jar
 ```
 
-3. Abre:
+3. Abre en el navegador:
 
 ```text
 http://localhost:8090
 ```
 
-No hace falta configurar nada. Los datos se guardan en una carpeta `data`
-**junto al JAR**:
+Para detener el servidor, pulsa `Ctrl + C` en la terminal.
 
-```text
-NubePrivadaCompartida.jar
-data/
-  nube-privada.db
-  uploads/
-  files/
-  thumbs/
-  tmp/
-```
+### Primer arranque
 
-Si mueves el JAR, mueve también la carpeta `data`. Si mueves solo el JAR, la
-aplicación creará una nube nueva y vacía junto a la nueva ubicación.
+Si la base de datos no tiene ningún administrador, la aplicación muestra una
+pantalla de **Configuración inicial** para crear la cuenta de administrador.
+La contraseña se guarda cifrada con BCrypt; no hay credenciales en el código.
 
-Si prefieres otra ubicación, define `CLOUD_HOME`:
+Después, el administrador puede crear el resto de usuarios desde la pestaña
+**Usuarios**.
+
+### Ubicación de los datos
+
+Por defecto, todo se guarda en una carpeta `data` **junto al JAR**. Si prefieres
+otra ubicación, define `CLOUD_HOME`:
 
 ```powershell
 $env:CLOUD_HOME = "D:\MisDatos\NubePrivada"
@@ -109,16 +115,14 @@ java -jar NubePrivadaCompartida.jar
 
 La carpeta se crea automáticamente en el primer arranque.
 
-## Primer arranque
+## Uso
 
-Si la base de datos no tiene ningún administrador, la aplicación muestra una
-pantalla de **Configuración inicial** para crear la cuenta de administrador.
-La contraseña se guarda cifrada con BCrypt; no hay credenciales en el código.
+1. Entra como administrador y crea los usuarios en **Usuarios**.
+2. Sube archivos y organiza el contenido en carpetas.
+3. Usa la búsqueda o los enlaces de compartición para encontrar y enviar archivos.
+4. Previsualiza imágenes, vídeo y PDF sin descargarlos.
 
-Después, el administrador puede crear el resto de usuarios desde la pestaña
-**Usuarios**.
-
-## Datos
+## Datos y copias de seguridad
 
 Por defecto se guardan en la carpeta `data` **junto al JAR**:
 
@@ -131,17 +135,11 @@ data/
 └── tmp/              # temporales de subida
 ```
 
-Si defines `CLOUD_HOME`, se usa esa carpeta.
-
-Si vienes de la versión anterior, la aplicación renombra automáticamente
-`cloudshare.db` a `nube-privada.db` para conservar tus datos.
-
-Para hacer una copia de seguridad, detén la aplicación y copia la carpeta
-`data` completa.
-
-**Importante al mover el JAR:** mueve también `data`. Si no lo haces, la
-aplicación arrancará con una nube vacía en la nueva ubicación. Los datos
-antiguos no se borran: siguen en la carpeta anterior.
+- Para hacer una copia de seguridad, detén la aplicación y copia la carpeta `data` completa.
+- Para restaurarla, deja la carpeta `data` junto al JAR y arranca de nuevo.
+- Si mueves el JAR, mueve también `data`. Si mueves solo el JAR, la aplicación creará una nube nueva y vacía junto a la nueva ubicación. Los datos antiguos no se borran: siguen en la carpeta anterior.
+- Si vienes de la versión anterior, la aplicación renombra automáticamente `cloudshare.db` a `nube-privada.db` para conservar tus datos.
+- No subas la carpeta `data` a GitHub.
 
 ## Sesión
 
@@ -182,7 +180,7 @@ En Linux / macOS:
 ./build.sh
 ```
 
-Después:
+El JAR se genera en `backend/target/NubePrivadaCompartida.jar` y se ejecuta igual que el descargado:
 
 ```powershell
 java -jar backend/target/NubePrivadaCompartida.jar
@@ -199,10 +197,17 @@ npm run build
 El resultado queda en `ui/dist/ui/browser`. El script de compilación lo copia
 automáticamente a `backend/src/main/resources/static`.
 
-## Estructura
+### Publicar una release
+
+1. Compila el JAR y pruébalo.
+2. En GitHub, entra en **Releases → Draft a new release**.
+3. Crea el tag de la versión y adjunta el JAR.
+4. Publica la release.
+
+## Estructura del proyecto
 
 ```text
-cloud/
+NubePrivadaCompartida/
 ├── backend/                    # Spring Boot + SQLite
 │   ├── src/main/java/          # API, seguridad, almacenamiento
 │   ├── src/main/resources/
@@ -213,8 +218,20 @@ cloud/
 ├── build.ps1                   # Compilación en Windows
 ├── build.sh                    # Compilación en Linux/macOS
 ├── docs/screenshot.png
+├── LICENSE
 └── README.md
 ```
+
+## Tecnologías
+
+| Capa | Tecnología |
+| --- | --- |
+| Lenguaje | Java 17 |
+| Framework | Spring Boot 3.3.5 |
+| Frontend | Angular 20 |
+| Base de datos | SQLite |
+| Autenticación | Sesiones + BCrypt |
+| Empaquetado | JAR ejecutable con frontend incluido |
 
 ## Seguridad
 
