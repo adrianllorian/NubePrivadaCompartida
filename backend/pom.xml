@@ -13,7 +13,7 @@
 
   <groupId>com.nubeprivada</groupId>
   <artifactId>nube-privada-compartida</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <name>Nube Privada Compartida</name>
   <description>Compartir ficheros con amigos</description>
 

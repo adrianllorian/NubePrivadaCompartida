@@ -8,6 +8,11 @@ import { ActivityPage, FolderDto, Item, Listing, Stats, User } from './models';
 type SortKey = 'name' | 'size' | 'date' | 'owner';
 type PreviewKind = 'image' | 'video' | 'audio' | 'pdf' | 'text' | 'other';
 
+interface UploadEntry {
+  file: File | null;
+  folders: string[];
+}
+
 @Component({
   selector: 'app-root',
   imports: [CommonModule, FormsModule],
@@ -457,9 +462,33 @@ export class App implements OnInit {
   onDrop(event: DragEvent): void {
     event.preventDefault();
     this.dragging = false;
-    const files = event.dataTransfer?.files;
-    if (files && files.length) {
-      this.sendFiles(Array.from(files));
+    const transfer = event.dataTransfer;
+    if (!transfer) {
+      return;
+    }
+
+    // Al arrastrar una carpeta, dataTransfer.files no contiene sus archivos.
+    // Hay que recorrer las entradas del sistema de archivos del navegador.
+    const entries: FileSystemEntry[] = [];
+    if (transfer.items && transfer.items.length) {
+      for (const item of Array.from(transfer.items)) {
+        if (item.kind !== 'file') {
+          continue;
+        }
+        const entry = item.webkitGetAsEntry?.();
+        if (entry) {
+          entries.push(entry);
+        }
+      }
+    }
+
+    if (entries.length) {
+      void this.collectDropped(entries);
+      return;
+    }
+
+    if (transfer.files && transfer.files.length) {
+      void this.sendEntries(Array.from(transfer.files).map(file => ({ file, folders: [] })));
     }
   }
 
@@ -481,40 +510,189 @@ export class App implements OnInit {
     }
   }
 
-  async sendFiles(files: File[]): Promise<void> {
-    if (this.uploading) {
+  onFolderPicked(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input.files ? Array.from(input.files) : [];
+    input.value = '';
+    if (!files.length) {
+      return;
+    }
+
+    const uploads: UploadEntry[] = [];
+    const seenFolders = new Set<string>();
+    for (const file of files) {
+      const relative = (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name;
+      const parts = relative.split('/').filter(Boolean);
+      if (parts.length <= 1) {
+        uploads.push({ file, folders: [] });
+        continue;
+      }
+      const folders = parts.slice(0, -1);
+      for (let i = 1; i <= folders.length; i++) {
+        const key = this.folderKey(folders.slice(0, i));
+        if (!seenFolders.has(key)) {
+          seenFolders.add(key);
+          uploads.push({ file: null, folders: folders.slice(0, i) });
+        }
+      }
+      uploads.push({ file, folders });
+    }
+    void this.sendEntries(uploads);
+  }
+
+  sendFiles(files: File[]): void {
+    void this.sendEntries(files.map(file => ({ file, folders: [] })));
+  }
+
+  private async collectDropped(entries: FileSystemEntry[]): Promise<void> {
+    try {
+      const uploads: UploadEntry[] = [];
+      for (const entry of entries) {
+        await this.walkEntry(entry, [], uploads);
+      }
+      await this.sendEntries(uploads);
+    } catch {
+      this.setNotice('No se pudieron leer las carpetas arrastradas');
+    }
+  }
+
+  private async walkEntry(entry: FileSystemEntry, folders: string[], out: UploadEntry[]): Promise<void> {
+    if (entry.isFile) {
+      const file = await new Promise<File>((resolve, reject) => {
+        (entry as FileSystemFileEntry).file(resolve, reject);
+      });
+      out.push({ file, folders });
+      return;
+    }
+    if (!entry.isDirectory) {
+      return;
+    }
+
+    const path = [...folders, entry.name];
+    // Se añade también la carpeta para crearla aunque esté vacía.
+    out.push({ file: null, folders: path });
+
+    const reader = (entry as FileSystemDirectoryEntry).createReader();
+    while (true) {
+      const batch = await new Promise<FileSystemEntry[]>((resolve, reject) => {
+        reader.readEntries(resolve, reject);
+      });
+      if (!batch.length) {
+        break;
+      }
+      for (const child of batch) {
+        await this.walkEntry(child, path, out);
+      }
+    }
+  }
+
+  private folderKey(parts: string[]): string {
+    return parts.join('/').toLowerCase();
+  }
+
+  private async ensureFolders(entries: UploadEntry[], parentId: string | null): Promise<Map<string, string>> {
+    const existing = await firstValueFrom(this.api.folders());
+    const ids = new Map<string, string | null>();
+    for (const folder of existing) {
+      ids.set(folder.path.toLowerCase(), folder.id);
+    }
+
+    const base = this.listing.breadcrumb.map(item => item.name);
+    const baseKey = base.join('/').toLowerCase();
+    ids.set(baseKey, parentId);
+
+    const wanted = new Map<string, string[]>();
+    for (const entry of entries) {
+      for (let i = 1; i <= entry.folders.length; i++) {
+        const segments = entry.folders.slice(0, i);
+        wanted.set(this.folderKey(segments), segments);
+      }
+    }
+
+    const result = new Map<string, string>();
+    const pending = Array.from(wanted.entries()).sort((a, b) => a[1].length - b[1].length);
+    for (const [key, segments] of pending) {
+      const absolute = [...base, ...segments].join('/').toLowerCase();
+      const found = ids.get(absolute);
+      if (typeof found === 'string') {
+        result.set(key, found);
+        continue;
+      }
+      const parentKey = [...base, ...segments.slice(0, -1)].join('/').toLowerCase();
+      const parent = ids.get(parentKey) ?? null;
+      const created = await firstValueFrom(this.api.createFolder(parent, segments[segments.length - 1]));
+      ids.set(absolute, created.id);
+      result.set(key, created.id);
+    }
+    return result;
+  }
+
+  async sendEntries(entries: UploadEntry[]): Promise<void> {
+    if (this.uploading || !entries.length) {
       return;
     }
     this.uploading = true;
     this.cancelRequested = false;
-    const parentId = this.listing.parentId;
+    this.uploadPercent = 0;
+    this.uploadNames = 'preparando…';
+    this.uploadText = '';
+    this.refresh();
 
-    for (const file of files) {
-      this.uploadNames = file.name;
-      this.uploadPercent = 0;
-      this.uploadText = '';
-      this.refresh();
-      try {
-        await this.uploadOne(file, parentId);
-      } catch (e: unknown) {
-        const cancelled = this.cancelRequested;
-        if (this.currentUploadId) {
-          this.api.uploadCancel(this.currentUploadId).subscribe({ error: () => undefined });
-          this.currentUploadId = null;
+    const parentId = this.listing.parentId;
+    let files = 0;
+    let folderCount = 0;
+
+    try {
+      const folders = await this.ensureFolders(entries, parentId);
+      const folderKeys = new Set<string>();
+      for (const entry of entries) {
+        for (let i = 1; i <= entry.folders.length; i++) {
+          folderKeys.add(this.folderKey(entry.folders.slice(0, i)));
         }
-        this.finishUpload();
-        this.load(parentId);
-        this.loadStats();
-        this.setNotice(cancelled ? 'Subida cancelada' : `Error al subir ${file.name}`);
-        return;
       }
+      folderCount = folderKeys.size;
+      this.uploadNames = folderCount ? 'carpetas y ficheros' : 'ficheros';
+      this.uploadText = folderCount ? `${folderCount} carpeta(s)` : '';
+      this.refresh();
+
+      for (const entry of entries) {
+        if (!entry.file) {
+          continue;
+        }
+        const key = this.folderKey(entry.folders);
+        const target = entry.folders.length ? (folders.get(key) ?? parentId) : parentId;
+        this.uploadNames = [...entry.folders, entry.file.name].join('/');
+        this.uploadPercent = 0;
+        this.uploadText = '';
+        this.refresh();
+        await this.uploadOne(entry.file, target);
+        files++;
+      }
+    } catch {
+      const failedName = this.uploadNames;
+      const cancelled = this.cancelRequested;
+      if (this.currentUploadId) {
+        this.api.uploadCancel(this.currentUploadId).subscribe({ error: () => undefined });
+        this.currentUploadId = null;
+      }
+      this.finishUpload();
+      this.load(parentId);
+      this.loadStats();
+      this.setNotice(cancelled ? 'Subida cancelada' : `Error al subir ${failedName || 'la selección'}`);
+      return;
     }
 
     this.finishUpload();
     this.load(parentId);
     this.loadStats();
     this.loadActivity(this.activityPage);
-    this.setNotice(files.length === 1 ? 'Fichero subido' : `${files.length} ficheros subidos`);
+    if (!files && folderCount) {
+      this.setNotice(`${folderCount} carpeta(s) creada(s)`);
+    } else if (folderCount) {
+      this.setNotice(`${files} fichero(s) subido(s) en ${folderCount} carpeta(s)`);
+    } else {
+      this.setNotice(files === 1 ? 'Fichero subido' : `${files} ficheros subidos`);
+    }
   }
 
   private async uploadOne(file: File, parentId: string | null): Promise<void> {

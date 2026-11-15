@@ -144,6 +144,10 @@
           </div>
           <div class="actions">
             <button type="button" class="ghost" (click)="openFolderDialog()">Nueva carpeta</button>
+            <label class="ghost file-btn">
+              Subir carpeta
+              <input type="file" webkitdirectory multiple (change)="onFolderPicked($event)" hidden />
+            </label>
             <label class="primary file-btn">
               Subir ficheros
               <input type="file" multiple (change)="onFilesPicked($event)" hidden />
@@ -196,7 +200,7 @@
         @if (sortedItems.length === 0) {
           <div class="empty">
             <p>{{ listing.search ? 'Sin resultados' : 'Esta carpeta está vacía' }}</p>
-            <p class="muted">{{ listing.search ? 'Prueba con otro nombre' : 'Arrastra ficheros aquí o pulsa «Subir ficheros»' }}</p>
+            <p class="muted">{{ listing.search ? 'Prueba con otro nombre' : 'Arrastra ficheros o carpetas aquí, o usa «Subir ficheros» / «Subir carpeta»' }}</p>
           </div>
         } @else {
           <div class="list">
